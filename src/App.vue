@@ -1,35 +1,8 @@
 <template>
-  <div class="shtorka" >
-    <div class="popup">
-      <div class="popup_header">
-        <h2>Изменение задачи</h2>
-
-        <svg @click="closePopup()" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 18.9999C5.74414 18.9999 5.48828 18.9022 5.29297 18.7069C4.90234 18.3163 4.90234 17.6835 5.29297 17.2929L17.293 5.29285C17.6836 4.90222 18.3164 4.90222 18.707 5.29285C19.0977 5.68348 19.0977 6.31629 18.707 6.70691L6.70703 18.7069C6.51172 18.9022 6.25586 18.9999 6 18.9999Z" fill="#B6B6B6"/>
-          <path d="M18 18.9999C17.7441 18.9999 17.4883 18.9022 17.293 18.7069L5.29297 6.70691C4.90234 6.31628 4.90234 5.68347 5.29297 5.29285C5.6836 4.90223 6.31641 4.90222 6.70703 5.29285L18.707 17.2928C19.0977 17.6835 19.0977 18.3163 18.707 18.7069C18.5117 18.9022 18.2559 18.9999 18 18.9999Z" fill="#B6B6B6"/>
-        </svg>
-
-      </div>
-      <div class="popup_main">
-        <input type="text" v-model="inputPopup">
-        <div v-if="taskForChange.status==='Открыт'">
-          <button @click="changeStatus('В работу')">В работу</button>
-          <button @click="changeStatus('Закрыт')">Закрыть</button>
-        </div>
-        <div v-if="taskForChange.status==='В работу'">
-          <button @click="changeStatus('Открыт')">Отложить</button>
-          <button @click="changeStatus('Закрыт')">Закрыть</button>
-        </div>
-        <div v-if="taskForChange.status==='Закрыт'">
-          <button @click="changeStatus('Открыт')">Переоткрыть</button>
-        </div>
-      </div>
-      <div class="popup_footer">
-        <button type="button" @click="changeTask()">Применить</button>
-        <button type="button" @click="removeTask()">Удалить задачу</button>
-      </div>
-    </div>
-  </div>
+  <Popup :task-for-change="taskForChange"
+          @removeTask="handleRemoveTask"
+          @editTask="handleEditTask"
+          @editStatusTask="handleEditStatusTask"/>
 
   <div class="backContainer">
     <div class="container">
@@ -39,7 +12,7 @@
       <h1>{{scloud}}</h1>
 
       <div class="containerCurrentTasks">
-        <div class="block_left">
+        <div class="statisticsTask">
           <h2>Текущие задачи</h2>
 
           <div class="counterCurrentTasks">
@@ -71,7 +44,7 @@
         </div>
 
 
-        <div class="block_right">
+        <div class="containerAddTask">
           <h2>Добавить задачу</h2>
             <form class="formAddTask" @submit.prevent>
               <button type="button" class="btnAddTask" @click="createTask"><span>&mdash;</span><span>&mdash;</span></button>
@@ -90,12 +63,12 @@
         </div>
         <div class="task_main">
           <span v-if="isShowMoreTasks">
-            <div v-for='task in this.tasks.filter(p=>p.status === "Открыт").concat(this.tasks.filter(p=>p.status === "В работу")).concat(this.tasks.filter(p=>p.status === "Закрыт"))'><span>{{task.description}}</span>
+            <div v-for='task in sortTasks(this.tasks)'><span>{{task.description}}</span>
               <button @click="showPopup(task)">{{task.status}}</button>
             </div>
           </span>
           <span v-else>
-            <div v-for='task in this.tasks.filter(p=>p.status === "Открыт").concat(this.tasks.filter(p=>p.status === "В работу")).concat(this.tasks.filter(p=>p.status === "Закрыт")).slice(0,5)'><span>{{task.description}}</span>
+            <div v-for='task in sortTasks(this.tasks).slice(0,5)'><span>{{task.description}}</span>
               <button @click="showPopup(task)">{{task.status}}</button>
             </div>
           </span>
@@ -157,9 +130,9 @@
 
 
 <script>
-import popup from "@/components/popup.vue";
+import Popup from "@/components/Popup.vue";
 export default {
-  components:{popup,},
+  components:{Popup,},
   data(){
     return{
       scloud: "ToDo List Scloud",
@@ -175,6 +148,32 @@ export default {
     }
   },
   methods:{
+    sortTasks(){
+      const arrStatus = {"Открыт":0,"В работу":1,"Закрыт":2};
+      return this.tasks.sort((a,b)=>arrStatus[a.status] - arrStatus[b.status]);
+    },
+    handleRemoveTask(data){
+      this.tasks = this.tasks.filter(p=>p.id !== data.id);
+      localStorage.setItem("tasks", JSON.stringify(this.tasks));
+    },
+    handleEditTask(data){
+      this.tasks = this.tasks.map((task) => (
+          task.id === data["id"]
+              ? {"id":task.id,"description":data.description,"status":task.status}
+              : task
+      ));
+      localStorage.setItem("tasks", JSON.stringify(this.tasks));
+    },
+    handleEditStatusTask(data){
+      console.log(data);
+
+      this.tasks = this.tasks.map((task) => (
+          task.id === data["id"]
+              ? {"id":task.id,"description":task.description,"status":data.status}
+              : task
+      ));
+      localStorage.setItem("tasks", JSON.stringify(this.tasks));
+    },
     toggle(){
       this.isShowMoreTasks = !this.isShowMoreTasks;
     },
@@ -186,22 +185,14 @@ export default {
     onDrop(evt, status) {
       const itemID = evt.dataTransfer.getData('itemID')
       const findedTask = this.tasks.find((item) => item.id == itemID)
-      const newPosts = this.tasks.map((task) => (
+      this.tasks = this.tasks.map((task) => (
           task.id === findedTask["id"]
               ? {"id":findedTask.id,"description":findedTask.description,"status":status}
               : task
       ));
-      this.tasks = newPosts.filter(p=>p.id);
-      localStorage.setItem("tasks", JSON.stringify(this.tasks));
-    },
-    applytaskdelete(data){
-      this.tasks = this.tasks.filter(p=>p.id !== data.id);
       localStorage.setItem("tasks", JSON.stringify(this.tasks));
     },
     createTask() {
-      if (!localStorage.getItem("tasks")) {
-        localStorage.setItem("tasks", JSON.stringify([]))
-      }
       this.tasks.push({
         "id": Date.now(),
         "description": this.descriptionTask,
@@ -215,35 +206,8 @@ export default {
       document.querySelector(".popup").style.display="block";
       document.querySelector(".popup_main input").value=this.taskForChange["description"];
     },
-    closePopup(){
-      document.querySelector(".shtorka").style.display="none";
-      document.querySelector(".popup").style.display="none";
-    },
-    removeTask(){
-      this.closePopup();
-      this.$emit('remove', this.taskForChange);
-      this.tasks = this.tasks.filter(p=>p.id !== this.taskForChange.id);
-      localStorage.setItem("tasks", JSON.stringify(this.tasks));
-    },
-    changeTask(){
-      const newPosts = this.tasks.map((task) => (
-          task.id === this.taskForChange["id"]
-              ? {"id":task.id,"description":this.inputPopup,"status":task.status}
-              : task
-      ));
-      this.tasks = newPosts.filter(p=>p.id);
-      localStorage.setItem("tasks", JSON.stringify(this.tasks));
-    },
-    changeStatus(status){
-        const newPosts = this.tasks.map((task) => (
-            task.id === this.taskForChange["id"]
-                ? {"id":task.id,"description":task.description,"status":status}
-                : task
-        ));
-        this.tasks = newPosts.filter(p=>p.id);
-        this.taskForChange["status"]=status;
-        localStorage.setItem("tasks", JSON.stringify(this.tasks));
-    }
+
+
   }
 }
 </script>
@@ -251,18 +215,6 @@ export default {
 
 
 <style scoped>
-.drop-zone {
-  height: 100px;
-  background-color: #eee;
-  margin-bottom: 10px;
-  padding: 10px;
-}
-
-.drag-el {
-  background-color: #fff;
-  margin-bottom: 10px;
-  padding: 5px;
-}
 h1{
   font-family: 'Montserrat', sans-serif;
   font-size: 32px;
@@ -289,7 +241,7 @@ h1{
   position: relative;
   top: 26px;
 }
-.container div .block_left,.block_right{
+.container div .statisticsTask,.containerAddTask{
   display: inline-block;
   width: 48%;
   height: 184px;
@@ -301,7 +253,7 @@ h2{
   font-size: 24px;
   line-height: 32px;
 }
-.block_left h2, .block_right h2{
+.statisticsTask h2, .containerAddTask h2{
   position: relative;
   top: 22px;
   left: 24px;
@@ -409,69 +361,7 @@ input:focus, button{
 
 
 
-.popup svg{
-  cursor: pointer;
-}
-.shtorka{
-  display: none;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100vh;
-  position: fixed;
-  background: rgba(0,0,0,0.4);
-  z-index: 99;
-}
-.popup{
-  display: none;
-  width: 50%;
-  background: white;
-  border-radius: 20px;
-  padding: 10px 26px;
-}
-.popup input{
-  width: 96%;
-  border: 1px solid #ccc;
-  border-radius: 28px;
-  padding: 16px;
-}
-.popup_header{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.popup_footer{
-  display: flex;
-  justify-content: space-between;
-}
-.popup_footer button{
-  padding: 12px 24px 12px 24px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  border-radius: 20px;
-  font-weight: 600;
-}
-.popup_footer button:first-child{
-  background: #FF6600;
-  color: white;
-  border: 0;
-}
-.popup_footer button:last-child{
-  border: 2px solid #FF6600;
-  background: white;
-  color: #FF6600;
-}
-.popup_main div{
-  border-top: 3px solid #ccc;
-  margin-top: 24px;
-}
-.popup_main div button{
-  margin: 20px;
-  border: 0;
-  border-radius: 27px;
-  padding: 10px 24px;
-  cursor: pointer;
-}
+
 .btnAddTaskMobile{
   display: none;
   width: 84%;
@@ -549,10 +439,10 @@ input:focus, button{
   .containerCurrentTasks{
     flex-direction: column;
   }
-  .container div .block_left,.block_right{
+  .container div .statisticsTask,.containerAddTask{
     width: 100%;
   }
-  .container div .block_left{
+  .container div .statisticsTask{
     margin-bottom: 40px;
   }
   .resetDescriptionTask{
@@ -567,10 +457,10 @@ input:focus, button{
   .containerCurrentTasks{
     flex-direction: column;
   }
-  .container div .block_left,.block_right{
+  .container div .statisticsTask,.containerAddTask{
     width: 100%;
   }
-  .container div .block_left{
+  .container div .statisticsTask{
     margin-bottom: 40px;
   }
   .container{
@@ -586,10 +476,10 @@ input:focus, button{
     justify-content: center;
     margin-bottom: 10px;
   }
-  .container div .block_left{
+  .container div .statisticsTask{
     height: 272px;
   }
-  .block_right{
+  .containerAddTask{
     height: 234px;
   }
   .formAddTask{
